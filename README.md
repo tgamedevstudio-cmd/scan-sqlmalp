@@ -29,6 +29,16 @@ Môi trường phát triển: Visual Studio 2022
 Hệ điều hành: Windows 10/11 (x64)
 Thư viện sử dụng: WinSock2, STL (chuẩn C++)
 Kết nối: TCP/IP qua HTTP (port 80)
+Hỗ trợ Proxy: HTTP Proxy (tự động lấy từ nhiều nguồn)
+
+TÍNH NĂNG NỔI BẬT
+-----------------
+1. Tự động lấy danh sách proxy từ nhiều nguồn trực tuyến
+2. Kiểm tra và lọc proxy hoạt động tốt
+3. Tự động xoay vòng proxy khi quét
+4. Hỗ trợ GET và POST method
+5. Phát hiện 4 kỹ thuật SQL Injection
+6. Ghi log chi tiết ra file
 
 KIẾN TRÚC HỆ THỐNG
 ------------------
@@ -36,22 +46,27 @@ KIẾN TRÚC HỆ THỐNG
    - Tạo socket TCP/IP
    - Xây dựng HTTP request
    - Xử lý response
+   - Hỗ trợ kết nối qua proxy
 
-2. Module phát hiện lỗ hổng
+2. Module quản lý proxy
+   - Thu thập proxy từ nhiều nguồn
+   - Kiểm tra proxy hoạt động
+   - Xoay vòng proxy tự động
+
+3. Module phát hiện lỗ hổng
    - Boolean-based detection
    - Error-based detection
    - Time-based detection
    - Union-based detection
 
-3. Module xử lý payload
+4. Module xử lý payload
    - URL encoding
    - Chèn payload vào request
    - Quản lý danh sách payload
 
-4. Module ghi nhật ký
+5. Module ghi nhật ký
    - Ghi log ra file
-   - Hiển thị màu sắc console
-   - Báo cáo kết quả
+   - Báo cáo kết quả chi tiết
 
 CÁC KỸ THUẬT TẤN CÔNG ĐƯỢC MÔ PHỎNG
 ------------------------------------
@@ -116,22 +131,13 @@ HƯỚNG DẪN SỬ DỤNG CHI TIẾT
 
 QUY TRÌNH QUÉT LỖ HỔNG
 ----------------------
-1. Thu thập baseline
-   - Gửi request không có payload
-   - Ghi nhận thời gian và kích thước response
-
-2. Duyệt danh sách payload
-   - Lần lượt gửi từng payload
-   - So sánh với baseline
-
-3. Phân tích kết quả
-   - Phát hiện lỗi SQL trong response
-   - So sánh sự khác biệt nội dung
-   - Đo thời gian phản hồi
-
-4. Tổng hợp báo cáo
-   - Liệt kê các payload thành công
-   - Đề xuất biện pháp khắc phục
+1. Thu thập danh sách proxy từ các nguồn trực tuyến
+2. Kiểm tra và lọc proxy hoạt động tốt
+3. Thu thập baseline từ mục tiêu
+4. Duyệt danh sách payload qua từng proxy
+5. Phân tích kết quả và phát hiện lỗ hổng
+6. Xoay vòng proxy sau mỗi lần phát hiện
+7. Tổng hợp báo cáo và đề xuất khắc phục
 
 DANH SÁCH PAYLOAD CHI TIẾT
 --------------------------
@@ -162,24 +168,33 @@ D. Union-based (06 payload)
 
 Tổng số payload: 17
 
+CÁC NGUỒN PROXY ĐƯỢC SỬ DỤNG
+----------------------------
+1. TheSpeedX Proxy List
+2. ShiftyTR Proxy List
+3. monosans proxy-list
+4. jetkai proxy-list
+5. roosterkid openproxylist
+6. proxyscrape.com API
+
 ĐỌC VÀ PHÂN TÍCH KẾT QUẢ
 -------------------------
-1. Mã màu báo cáo:
-   [*] - Thông tin (màu xanh dương)
-   [+] - An toàn / Thành công (màu xanh lá)
-   [!] - Cảnh báo (màu vàng)
-   [-] - Lỗi (màu đỏ)
-   [!!!] - Lỗ hổng (màu đỏ đậm)
+1. Ký hiệu báo cáo:
+   [*] - Thông tin
+   [+] - Thành công / An toàn
+   [-] - Lỗi
+   [!!!] - Lỗ hổng
 
 2. Các trường hợp phát hiện lỗ hổng:
-   - "Response khác biệt": Boolean-based SQLi
-   - "Phát hiện lỗi SQL": Error-based SQLi
+   - "Response differs": Boolean-based SQLi
+   - "SQL error detected": Error-based SQLi
    - "Delay: X ms": Time-based SQLi
-   - "Trích xuất: data": Union-based SQLi
+   - "Extracted: data": Union-based SQLi
 
 3. File log: sql_scan_log.txt
    - Lưu toàn bộ quá trình quét
    - Có timestamp cho mỗi lần chạy
+   - Ghi chi tiết từng payload và kết quả
 
 XỬ LÝ SỰ CỐ
 -----------
@@ -212,14 +227,15 @@ XỬ LÝ SỰ CỐ
    - Dùng địa chỉ IP thay vì tên miền
    - Kiểm tra cấu hình DNS
 
-4. Timeout khi nhận response
+4. Không tìm thấy proxy hoạt động
    Nguyên nhân:
-   - Mạng chậm
-   - Mục tiêu quá tải
+   - Các nguồn proxy đang bị chặn
+   - Kết nối mạng không ổn định
    
    Khắc phục:
-   - Tăng giá trị timeout trong code
-   - Giảm số lượng payload
+   - Kiểm tra kết nối internet
+   - Chạy lại chương trình
+   - Thêm nguồn proxy mới
 
 BIỆN PHÁP PHÒNG CHỐNG SQL INJECTION
 -----------------------------------
@@ -251,16 +267,16 @@ GIỚI HẠN CỦA CÔNG CỤ
 4. Chưa có cơ chế tránh IDS/IPS
 5. Tốc độ quét chậm do delay giữa các request
 6. Chưa phát hiện second-order SQL injection
+7. Proxy chỉ hỗ trợ HTTP (không SOCKS)
 
 PHÁT TRIỂN VÀ MỞ RỘNG
 ---------------------
 1. Thêm payload mới:
    - Thêm vào mảng payloads trong hàm initPayloads()
-   - Định dạng: Payload("tên", "payload", "kỹ thuật")
+   - Định dạng: {"tên", "payload", "kỹ thuật"}
 
-2. Thêm kỹ thuật phát hiện mới:
-   - Tạo hàm phát hiện riêng
-   - Thêm vào vòng lặp kiểm tra
+2. Thêm nguồn proxy mới:
+   - Thêm URL vào vector proxySources
 
 3. Hỗ trợ HTTPS:
    - Sử dụng OpenSSL hoặc Windows SChannel
@@ -269,15 +285,6 @@ PHÁT TRIỂN VÀ MỞ RỘNG
 4. Thêm xử lý cookie:
    - Lưu cookie từ response đầu tiên
    - Gửi lại trong các request sau
-
-LỊCH SỬ PHIÊN BẢN
------------------
-Phiên bản 1.0 (Tháng 1, 2025)
-   - Phát hành lần đầu
-   - Hỗ trợ 4 kỹ thuật SQL injection cơ bản
-   - Hỗ trợ GET và POST method
-   - Ghi log ra file
-
 TÀI LIỆU THAM KHẢO
 ------------------
 1. OWASP SQL Injection Prevention Cheat Sheet
